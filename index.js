@@ -115,8 +115,42 @@ async function scrapeEpicGames() {
   }
 }
 
+async function scrapeSteamSpecials() {
+  const url = "https://store.steampowered.com/search/?specials=1&cc=br";
+  const result = await fetchWithFallback(url, "Steam Specials");
+  if (!result || !result.html) return [];
+  const $ = cheerio.load(result.html);
+  const jogos = [];
+  $(".search_result_row").each((_, el) => {
+    const title = $(el).find(".title").text().trim();
+    const appid = $(el).attr("data-ds-appid");
+    const price = $(el).find(".discount_final_price").text().trim();
+    const originalPrice = $(el).find(".discount_original_price").text().trim();
+    const discount = $(el).find(".discount_pct").text().trim();
+    const storeUrl = $(el).attr("href");
+    
+    const imageUrl = appid 
+      ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
+      : $(el).find("img").attr("src")?.replace("capsule_616x353", "header");
+
+    if (title && discount) {
+      jogos.push({ 
+        title, 
+        price, 
+        description: `Oferta especial na Steam: ${discount} de desconto!`,
+        originalPrice, 
+        discount, 
+        storeUrl, 
+        imageUrl: imageUrl || "https://community.akamai.steamstatic.com/public/images/applications/store/capsule_616x353.jpg",
+        platform: "Steam" 
+      });
+    }
+  });
+  return jogos.slice(0, 20);
+}
+
 async function scrapeEpicSpecials() {
-  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=20&country=BR&locale=pt-BR&onSale=true";
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=30&country=BR&locale=pt-BR&onSale=true";
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
     const games = data?.data?.Catalog?.searchStore?.elements || [];
