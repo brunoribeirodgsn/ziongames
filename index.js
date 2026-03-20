@@ -50,33 +50,33 @@ async function fetchWithFallback(url, platform) {
 async function scrapeSteamFree() {
   const url = "https://store.steampowered.com/search/?filter=free&ndl=1&cc=br";
   const result = await fetchWithFallback(url, "Steam Free");
-  if (!result) return [];
+  if (!result || !result.html) return [];
   const $ = cheerio.load(result.html);
   const jogos = [];
   $(".search_result_row").each((_, el) => {
     const title = $(el).find(".title").text().trim();
     const appid = $(el).attr("data-ds-appid");
-    const priceText = $(el).find(".search_price").text().trim().toLowerCase();
+    const priceDiv = $(el).find(".search_price");
+    const priceText = priceDiv.text().trim().toLowerCase();
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
     
     const imageUrl = appid 
       ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
-      : $(el).find("img").attr("src").replace("capsule_616x353", "header");
+      : $(el).find("img").attr("src")?.replace("capsule_616x353", "header");
     
     const isGiveaway = discount.includes("100");
-    const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || priceText.includes("free");
+    const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || priceText.includes("free") || priceText.includes("grátis");
 
     if (title && (isGiveaway || isFree)) {
       jogos.push({ 
         title, 
         price: "GRÁTIS", 
-        description: isGiveaway ? "PROMOÇÃO: Resgate este jogo gratuitamente (100% OFF)!" : "Jogo gratuito permanentemente na Steam.",
+        description: isGiveaway ? "PROMOÇÃO: Resgate este jogo gratuitamente (100% OFF)!" : "Jogo disponível gratuitamente na Steam.",
         originalPrice: isGiveaway ? "R$ --" : null, 
         discount: isGiveaway ? "-100%" : null, 
         storeUrl, 
-        imageUrl, 
-        fallbackImage: $(el).find("img").attr("src").replace("capsule_616x353", "header"),
+        imageUrl: imageUrl || "https://community.akamai.steamstatic.com/public/images/applications/store/capsule_616x353.jpg",
         platform: "Steam" 
       });
     }
@@ -88,7 +88,7 @@ async function scrapeEpicGames() {
   const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
-    const games = data.data.Catalog.searchStore.elements;
+    const games = data?.data?.Catalog?.searchStore?.elements || [];
     const jogos = [];
 
     games.forEach(game => {
@@ -100,10 +100,10 @@ async function scrapeEpicGames() {
           title: game.title,
           description: game.description || "Resgate este jogo gratuitamente na Epic Games Store.",
           price: "GRÁTIS",
-          originalPrice: game.price.totalPrice.originalPrice > 0 ? `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2).replace(".", ",") }` : null,
+          originalPrice: game.price?.totalPrice?.originalPrice > 0 ? `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2).replace(".", ",") }` : null,
           discount: "-100%",
-          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
-          imageUrl: game.keyImages.find(img => img.type === "OfferImageTall")?.url || game.keyImages.find(img => img.type === "Thumbnail")?.url || game.keyImages[0]?.url,
+          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs?.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
+          imageUrl: game.keyImages?.find(img => img.type === "OfferImageTall")?.url || game.keyImages?.find(img => img.type === "Thumbnail")?.url || game.keyImages?.[0]?.url,
           platform: "Epic Games"
         });
       }
@@ -116,26 +116,26 @@ async function scrapeEpicGames() {
 }
 
 async function scrapeEpicSpecials() {
-  const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=20&country=BR&locale=pt-BR&onSale=true";
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
-    const games = data.data.Catalog.searchStore.elements;
+    const games = data?.data?.Catalog?.searchStore?.elements || [];
     const jogos = [];
 
     games.forEach(game => {
-      const originalPrice = game.price.totalPrice.originalPrice;
-      const discountPrice = game.price.totalPrice.discountPrice;
-      const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
-
+      const originalPrice = game.price?.totalPrice?.originalPrice || 0;
+      const discountPrice = game.price?.totalPrice?.discountPrice || 0;
+      
       if (discountPrice < originalPrice && discountPrice > 0) {
+        const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
         jogos.push({
           title: game.title,
           description: game.description || "Oferta especial na Epic Games Store.",
           price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
           originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
           discount: `-${discountPercentage}%`,
-          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
-          imageUrl: game.keyImages.find(img => img.type === "OfferImageTall")?.url || game.keyImages.find(img => img.type === "Thumbnail")?.url || game.keyImages[0]?.url,
+          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs?.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
+          imageUrl: game.keyImages?.find(img => img.type === "OfferImageTall")?.url || game.keyImages?.find(img => img.type === "Thumbnail")?.url || game.keyImages?.[0]?.url,
           platform: "Epic Games"
         });
       }
