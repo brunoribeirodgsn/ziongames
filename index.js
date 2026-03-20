@@ -53,26 +53,29 @@ async function scrapeSteamFree() {
   if (!result || !result.html) return [];
   const $ = cheerio.load(result.html);
   const jogos = [];
-  $(".search_result_row").each((_, el) => {
+  $(".search_result_rows .search_result_row").each((_, el) => {
     const title = $(el).find(".title").text().trim();
     const appid = $(el).attr("data-ds-appid");
-    const priceDiv = $(el).find(".search_price");
-    const priceText = priceDiv.text().trim().toLowerCase();
+    // Steam sometimes places "Free" in different classes or directly in the div
+    const priceText = $(el).find(".search_price").text().trim().toLowerCase();
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
+    
+    // Some free games have the price in .responsive_secondrow
+    const extraPrice = $(el).find(".responsive_secondrow").text().trim().toLowerCase();
     
     const imageUrl = appid 
       ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
       : $(el).find("img").attr("src")?.replace("capsule_616x353", "header");
     
+    const isFree = priceText.includes("grat") || priceText.includes("free") || priceText.includes("0,00") || extraPrice.includes("grat") || extraPrice.includes("free");
     const isGiveaway = discount.includes("100");
-    const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || priceText.includes("free") || priceText.includes("grátis");
 
-    if (title && (isGiveaway || isFree)) {
+    if (title && (isFree || isGiveaway)) {
       jogos.push({ 
         title, 
         price: "GRÁTIS", 
-        description: isGiveaway ? "PROMOÇÃO: Resgate este jogo gratuitamente (100% OFF)!" : "Jogo disponível gratuitamente na Steam.",
+        description: isGiveaway ? "PROMOÇÃO: Resgate agora e fique para sempre (100% OFF)!" : "Jogo disponível gratuitamente na Steam.",
         originalPrice: isGiveaway ? "R$ --" : null, 
         discount: isGiveaway ? "-100%" : null, 
         storeUrl, 
@@ -150,7 +153,8 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicSpecials() {
-  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=30&country=BR&locale=pt-BR&onSale=true";
+  // Broad search for games on sale
+  const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
     const games = data?.data?.Catalog?.searchStore?.elements || [];
@@ -160,11 +164,12 @@ async function scrapeEpicSpecials() {
       const originalPrice = game.price?.totalPrice?.originalPrice || 0;
       const discountPrice = game.price?.totalPrice?.discountPrice || 0;
       
+      // Filter for active promotions (not free games)
       if (discountPrice < originalPrice && discountPrice > 0) {
         const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
         jogos.push({
           title: game.title,
-          description: game.description || "Oferta especial na Epic Games Store.",
+          description: game.description || "Oferta imperdível disponível por tempo limitado.",
           price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
           originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
           discount: `-${discountPercentage}%`,
