@@ -55,10 +55,15 @@ async function scrapeSteamFree() {
   const jogos = [];
   $(".search_result_row").each((_, el) => {
     const title = $(el).find(".title").text().trim();
+    const appid = $(el).attr("data-ds-appid");
     const priceText = $(el).find(".search_price").text().trim().toLowerCase();
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
-    const imageUrl = $(el).find("img").attr("src").replace("capsule_616x353", "header");
+    
+    // Usar imagem vertical de alta qualidade (600x900)
+    const imageUrl = appid 
+      ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
+      : $(el).find("img").attr("src").replace("capsule_616x353", "header");
     
     const isGiveaway = discount.includes("100");
     const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || (priceText.includes("free") && !priceText.includes("play"));
@@ -72,6 +77,7 @@ async function scrapeSteamFree() {
         discount: isGiveaway ? "-100%" : null, 
         storeUrl, 
         imageUrl, 
+        fallbackImage: $(el).find("img").attr("src").replace("capsule_616x353", "header"),
         platform: "Steam" 
       });
     }
@@ -87,11 +93,16 @@ async function scrapeSteamSpecials() {
   const jogos = [];
   $(".search_result_row").each((_, el) => {
     const title = $(el).find(".title").text().trim();
+    const appid = $(el).attr("data-ds-appid");
     const price = $(el).find(".discount_final_price").text().trim();
     const originalPrice = $(el).find(".discount_original_price").text().trim();
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
-    const imageUrl = $(el).find("img").attr("src").replace("capsule_616x353", "header");
+    
+    const imageUrl = appid 
+      ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
+      : $(el).find("img").attr("src").replace("capsule_616x353", "header");
+
     if (title && discount) {
       jogos.push({ 
         title, 
@@ -101,6 +112,7 @@ async function scrapeSteamSpecials() {
         discount, 
         storeUrl, 
         imageUrl, 
+        fallbackImage: $(el).find("img").attr("src").replace("capsule_616x353", "header"),
         platform: "Steam" 
       });
     }

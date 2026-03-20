@@ -179,8 +179,7 @@
                         <p id="platform-desc" class="text-white/30 text-lg font-medium max-w-xl">Curadoria exclusiva das melhores ofertas em BRL processadas em tempo real.</p>
                     </div>
                 </div>
-                
-                <div id="games-container" class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-10">
+                              <div id="games-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-12">
                     <!-- Cards will be injected here -->
                 </div>
             </div>
@@ -188,13 +187,13 @@
     </div>
 
     <!-- Modal Premium -->
-    <div id="game-modal" class="fixed inset-0 bg-black/95 z-[100] flex items-center justify-center p-8 hidden backdrop-blur-3xl opacity-0 transition-all duration-500">
-        <div id="modal-wrapper" class="bg-[#0c0c0e] rounded-[48px] w-full max-w-6xl max-h-[85vh] flex flex-col md:flex-row overflow-hidden border border-white/5 shadow-[0_0_100px_rgba(0,0,0,0.8)] scale-90 transition-all duration-500">
+    <div id="game-modal" class="fixed inset-0 bg-black/98 z-[100] flex items-center justify-center p-8 hidden backdrop-blur-3xl opacity-0 transition-all duration-500">
+        <div id="modal-wrapper" class="bg-[#0c0c0e] rounded-[56px] w-full max-w-6xl max-h-[90vh] flex flex-col md:flex-row overflow-hidden border border-white/5 shadow-[0_0_120px_rgba(0,0,0,1)] scale-90 transition-all duration-500">
             <div id="modal-content" class="flex flex-col md:flex-row w-full h-full relative">
                 <!-- Injected via JS -->
             </div>
-            <button id="close-modal" class="absolute top-8 right-8 w-12 h-12 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-all z-[110]">
-                <i data-lucide="x" class="w-6 h-6 text-white"></i>
+            <button id="close-modal" class="absolute top-10 right-10 w-14 h-14 rounded-full glass flex items-center justify-center hover:bg-white/10 transition-all z-[110]">
+                <i data-lucide="x" class="w-8 h-8 text-white"></i>
             </button>
         </div>
     </div>
@@ -235,19 +234,19 @@
             function updateHero(game) {
                 heroImg.style.opacity = '0';
                 setTimeout(() => {
-                    heroImg.src = game.imageUrl.replace('header', 'capsule_616x353'); 
+                    heroImg.src = game.fallbackImage || game.imageUrl; 
                     heroImg.style.opacity = '0.6';
                     heroTitle.textContent = game.title;
-                    heroPlatform.textContent = game.platform + ' Edition';
+                    heroPlatform.textContent = game.platform + ' Highlight';
                     heroPriceText.textContent = game.price;
-                    heroPriceText.className = `text-3xl font-black tracking-tighter ${game.price.includes('GRÁTIS') ? 'text-green-400' : 'text-white'}`;
+                    heroPriceText.className = `text-4xl font-black tracking-tighter ${game.price.includes('GRÁTIS') ? 'text-green-400' : 'text-white'}`;
                 }, 500);
                 heroAction.onclick = () => openGameModal(game);
             }
 
             function showSpinner() {
-                gamesContainer.innerHTML = Array(12).fill(0).map(() => `
-                    <div class="h-[420px] bg-white/5 rounded-[32px] animate-pulse"></div>
+                gamesContainer.innerHTML = Array(8).fill(0).map(() => `
+                    <div class="h-[520px] bg-white/5 rounded-[40px] animate-pulse border border-white/5"></div>
                 `).join('');
             }
 
@@ -259,28 +258,30 @@
                     const isFree = game.price?.includes('GRÁTIS') || game.price?.toLowerCase().includes('gratuito');
                     const card = document.createElement('div');
                     card.className = `group cursor-pointer animate-fade-in-up`;
-                    card.style.animationDelay = `${index * 40}ms`;
+                    card.style.animationDelay = `${index * 60}ms`;
                     
                     card.innerHTML = `
-                        <div class="game-card-hover relative h-[420px] rounded-[32px] overflow-hidden bg-[#121215] border border-white/5 shadow-2xl">
-                            <img src="${game.imageUrl}" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-[1.5s] ease-out" onerror="this.src='https://placehold.co/600x800/121214/white?text=${game.title.split(' ')[0]}'">
-                            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent opacity-90"></div>
-                            
-                            <div class="absolute top-6 right-6 flex flex-col items-end gap-2">
-                                ${isFree ? '<span class="bg-green-500 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-2xl uppercase tracking-tighter">GRÁTIS</span>' : ''}
-                                ${game.discount ? `<span class="bg-purple-600 text-white text-[10px] font-black px-3 py-1.5 rounded-xl shadow-2xl tracking-tighter">${game.discount}</span>` : ''}
+                        <div class="game-card-hover relative h-[520px] rounded-[40px] overflow-hidden bg-[#0e0e11] border border-white/5 shadow-2xl">
+                            <img src="${game.imageUrl}" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-[2s] ease-out" 
+                                 onerror="this.src='${game.fallbackImage || 'https://placehold.co/600x900/121214/white?text=' + game.title.split(' ')[0]}'">
+                            <div class="absolute inset-0 bg-gradient-to-t from-[#08080a] via-transparent to-transparent opacity-100"></div>
+                            <div class="absolute inset-0 bg-black/20 group-hover:bg-transparent transition-colors duration-700"></div>
+
+                            <div class="absolute top-8 right-8 flex flex-col items-end gap-3 z-10">
+                                ${isFree ? '<span class="bg-green-500 text-white text-[11px] font-black px-4 py-2 rounded-2xl shadow-[0_0_20px_rgba(34,197,94,0.4)] uppercase tracking-tighter">GRÁTIS</span>' : ''}
+                                ${game.discount ? `<span class="bg-purple-600 text-white text-[11px] font-black px-4 py-2 rounded-2xl shadow-[0_0_20px_rgba(139,92,246,0.4)] tracking-tighter">${game.discount}</span>` : ''}
                             </div>
 
-                            <div class="absolute bottom-8 left-8 right-8">
-                                <p class="text-[10px] uppercase font-black text-purple-500 mb-2 tracking-[0.2em] opacity-80">${game.platform}</p>
-                                <h3 class="text-xl font-bold text-white leading-[1.1] tracking-tighter mb-4 line-clamp-2">${game.title}</h3>
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-3">
-                                        <span class="text-lg font-black ${isFree ? 'text-green-400' : 'text-white'}">${game.price}</span>
-                                        ${game.originalPrice ? `<span class="text-xs text-white/30 line-through font-medium">${game.originalPrice}</span>` : ''}
+                            <div class="absolute bottom-10 left-10 right-10 z-10">
+                                <p class="text-[11px] uppercase font-black text-purple-500 mb-3 tracking-[0.3em] opacity-80">${game.platform}</p>
+                                <h3 class="text-3xl font-bold text-white leading-[1.05] tracking-tighter mb-6 line-clamp-2">${game.title}</h3>
+                                <div class="flex items-center justify-between gap-4">
+                                    <div class="flex flex-col">
+                                        ${game.originalPrice ? `<span class="text-sm text-white/30 line-through font-bold mb-1">${game.originalPrice}</span>` : ''}
+                                        <span class="text-3xl font-black ${isFree ? 'text-green-400' : 'text-white'} tracking-tighter">${game.price}</span>
                                     </div>
-                                    <div class="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center group-hover:bg-purple-600 transition-colors">
-                                        <i data-lucide="plus" class="w-5 h-5 text-white"></i>
+                                    <div class="w-14 h-14 rounded-full bg-white/5 border border-white/5 flex items-center justify-center group-hover:bg-purple-600 group-hover:border-purple-500 transition-all shadow-xl group-hover:rotate-12">
+                                        <i data-lucide="arrow-up-right" class="w-7 h-7 text-white"></i>
                                     </div>
                                 </div>
                             </div>
@@ -295,11 +296,11 @@
             function renderError(platform) {
                 gamesContainer.innerHTML = `
                     <div class="col-span-full py-32 text-center">
-                        <div class="w-20 h-20 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 text-white/20">
-                            <i data-lucide="search-x" class="w-10 h-10"></i>
+                        <div class="w-24 h-24 bg-white/5 border border-white/5 rounded-full flex items-center justify-center mx-auto mb-8 text-white/10">
+                            <i data-lucide="ghost" class="w-12 h-12"></i>
                         </div>
-                        <h3 class="text-xl font-bold text-white mb-2">Base de Dados Vazia</h3>
-                        <p class="text-gray-500 max-w-sm mx-auto">Não encontramos ofertas no momento para ${platform}. Nossa IA está buscando novas oportunidades.</p>
+                        <h3 class="text-2xl font-black text-white mb-4 tracking-tighter">SEM ECOS NESTE SETOR</h3>
+                        <p class="text-white/30 max-w-sm mx-auto font-medium">Não identificamos frequências de ofertas para ${platform} neste momento. A varredura continua.</p>
                     </div>
                 `;
                 lucide.createIcons();
@@ -308,47 +309,62 @@
             function openGameModal(game) {
                 const isFree = game.price?.includes('GRÁTIS') || game.price?.toLowerCase().includes('gratuito');
                 modalContent.innerHTML = `
-                    <div class="md:w-[60%] h-[400px] md:h-auto relative overflow-hidden">
-                        <img src="${game.imageUrl.replace('header', 'capsule_616x353')}" class="w-full h-full object-cover">
-                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-[#0c0c0e]/20 to-[#0c0c0e] hidden md:block"></div>
+                    <div class="md:w-[55%] h-[400px] md:h-auto relative overflow-hidden bg-[#08080a]">
+                        <img src="${game.imageUrl}" class="w-full h-full object-cover" 
+                             onerror="this.src='${game.fallbackImage || ''}'">
+                        <div class="absolute inset-0 bg-gradient-to-r from-transparent via-[#0c0c0e]/10 to-[#0c0c0e] hidden md:block"></div>
                         <div class="absolute inset-0 bg-gradient-to-t from-[#0c0c0e] to-transparent md:hidden"></div>
                     </div>
-                    <div class="md:w-[40%] p-16 flex flex-col justify-center">
-                        <div class="flex items-center gap-2 mb-6">
-                            <span class="w-2 h-2 rounded-full bg-purple-500 animate-pulse"></span>
-                            <span class="text-[11px] font-black text-white/40 uppercase tracking-[0.3em]">${game.platform}</span>
+                    <div class="md:w-[45%] p-20 flex flex-col justify-center">
+                        <div class="flex items-center gap-3 mb-8">
+                            <div class="w-3 h-3 rounded-full bg-purple-500 shadow-[0_0_15px_rgba(139,92,246,0.6)] animate-pulse"></div>
+                            <span class="text-xs font-black text-white/30 uppercase tracking-[0.4em]">${game.platform} verified</span>
                         </div>
-                        <h2 class="text-5xl font-black text-white mb-8 leading-[0.9] tracking-tighter">${game.title}</h2>
+                        <h2 class="text-6xl font-black text-white mb-10 leading-[0.85] tracking-tighter">${game.title}</h2>
                         
-                        <div class="p-8 rounded-[32px] bg-white/5 border border-white/5 mb-10">
-                            <p class="text-xs text-white/40 font-bold uppercase mb-2">Resumo da Oferta</p>
-                            <p class="text-sm text-white/60 font-medium leading-relaxed italic">
+                        <div class="p-10 rounded-[40px] bg-white/5 border border-white/5 mb-14 shadow-inner">
+                            <p class="text-[10px] text-purple-500 font-black uppercase mb-3 tracking-widest">Analysis Preview</p>
+                            <p class="text-lg text-white/50 font-medium leading-relaxed italic">
                                 "${game.description || 'Uma oportunidade imperdível disponível por tempo limitado.'}"
                             </p>
                         </div>
 
-                        <div class="flex items-end gap-6 mb-12">
+                        <div class="flex items-end gap-8 mb-16">
                             <div>
-                                <p class="text-[10px] font-bold text-white/30 uppercase mb-1">Preço Sugerido</p>
-                                <div class="flex items-center gap-3">
-                                    <p class="text-5xl font-black ${isFree ? 'text-green-400' : 'text-white'} tracking-tighter">${game.price}</p>
-                                    ${game.discount ? `<div class="bg-green-500/10 text-green-500 px-3 py-1 rounded-lg font-black text-base">${game.discount}</div>` : ''}
+                                <p class="text-xs font-black text-white/20 uppercase mb-2 tracking-tighter">Current Value</p>
+                                <div class="flex items-center gap-4">
+                                    <p class="text-6xl font-black ${isFree ? 'text-green-400' : 'text-white'} tracking-tighter">${game.price}</p>
+                                    ${game.discount ? `<div class="bg-green-500/20 text-green-400 px-4 py-2 rounded-2xl font-black text-xl border border-green-500/20">${game.discount}</div>` : ''}
                                 </div>
-                                ${game.originalPrice ? `<p class="text-sm text-white/20 line-through mt-1 font-bold">De ${game.originalPrice}</p>` : ''}
+                                ${game.originalPrice ? `<p class="text-xl text-white/20 line-through mt-2 font-bold tracking-tighter">Was ${game.originalPrice}</p>` : ''}
                             </div>
                         </div>
 
-                        <div class="flex gap-4">
-                            <a href="${game.storeUrl}" target="_blank" class="flex-1 h-20 bg-purple-600 hover:bg-purple-700 text-white transition-all rounded-[24px] flex items-center justify-center gap-3 font-black text-xl shadow-2xl shadow-purple-600/20 active:scale-95">
+                        <div class="flex gap-6">
+                            <a href="${game.storeUrl}" target="_blank" class="flex-1 h-24 bg-white text-black hover:bg-purple-600 hover:text-white transition-all rounded-[32px] flex items-center justify-center gap-4 font-black text-2xl shadow-2xl active:scale-95">
                                 Resgatar
-                                <i data-lucide="external-link" class="w-6 h-6"></i>
+                                <i data-lucide="external-link" class="w-8 h-8"></i>
                             </a>
-                            <button id="share-game" class="w-20 h-20 bg-white/5 hover:bg-white/10 rounded-[24px] flex items-center justify-center transition-all">
-                                <i data-lucide="share-2" class="w-6 h-6 text-white"></i>
+                            <button id="share-game" class="w-24 h-24 bg-white/5 hover:bg-white/10 border border-white/5 rounded-[32px] flex items-center justify-center transition-all group">
+                                <i data-lucide="share-2" class="w-8 h-8 text-white group-hover:scale-110 transition-transform"></i>
                             </button>
                         </div>
                     </div>
                 `;
+                gameModal.classList.remove('hidden');
+                setTimeout(() => {
+                    gameModal.classList.add('opacity-100');
+                    modalWrapper.classList.remove('scale-90');
+                }, 10);
+                lucide.createIcons();
+
+                document.getElementById('share-game').onclick = () => {
+                    if (navigator.share) {
+                        navigator.share({ title: game.title, url: game.storeUrl });
+                    }
+                };
+            }
+         `;
                 gameModal.classList.remove('hidden');
                 setTimeout(() => {
                     gameModal.classList.add('opacity-100');
