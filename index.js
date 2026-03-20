@@ -48,7 +48,7 @@ async function fetchWithFallback(url, platform) {
 
 // Scrapers
 async function scrapeSteamFree() {
-  const url = "https://store.steampowered.com/search/?filter=free&ndl=1";
+  const url = "https://store.steampowered.com/search/?filter=free&ndl=1&cc=br";
   const result = await fetchWithFallback(url, "Steam Free");
   if (!result) return [];
   const $ = cheerio.load(result.html);
@@ -58,16 +58,16 @@ async function scrapeSteamFree() {
     const priceText = $(el).find(".search_price").text().trim().toLowerCase();
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
-    const imageUrl = $(el).find("img").attr("src");
+    const imageUrl = $(el).find("img").attr("src").replace("capsule_616x353", "header");
     
-    // Prioritizar Giveaways (100% off) ou preçõ que diga "Gratuito" (não "Free to Play" permanente)
     const isGiveaway = discount.includes("100");
-    const isFree = priceText.includes("gratuito") && !priceText.includes("play");
+    const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || (priceText.includes("free") && !priceText.includes("play"));
 
     if (title && (isGiveaway || isFree)) {
       jogos.push({ 
         title, 
         price: "GRÁTIS", 
+        description: "Resgate este jogo gratuitamente na Steam.",
         originalPrice: isGiveaway ? "R$ --" : null, 
         discount: isGiveaway ? "-100%" : null, 
         storeUrl, 
@@ -80,7 +80,7 @@ async function scrapeSteamFree() {
 }
 
 async function scrapeSteamSpecials() {
-  const url = "https://store.steampowered.com/search/?specials=1";
+  const url = "https://store.steampowered.com/search/?specials=1&cc=br";
   const result = await fetchWithFallback(url, "Steam Specials");
   if (!result) return [];
   const $ = cheerio.load(result.html);
@@ -91,8 +91,19 @@ async function scrapeSteamSpecials() {
     const originalPrice = $(el).find(".discount_original_price").text().trim();
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
-    const imageUrl = $(el).find("img").attr("src");
-    if (title && discount) jogos.push({ title, price, originalPrice, discount, storeUrl, imageUrl, platform: "Steam" });
+    const imageUrl = $(el).find("img").attr("src").replace("capsule_616x353", "header");
+    if (title && discount) {
+      jogos.push({ 
+        title, 
+        price, 
+        description: `Oferta especial na Steam: ${discount} de desconto!`,
+        originalPrice, 
+        discount, 
+        storeUrl, 
+        imageUrl, 
+        platform: "Steam" 
+      });
+    }
   });
   return jogos.slice(0, 15);
 }
@@ -105,18 +116,18 @@ async function scrapeEpicGames() {
     const jogos = [];
 
     games.forEach(game => {
-      // Verificar se o jogo está atualmente grátis
       const promo = game.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
       const isFreeNow = promo && promo.discountSetting?.discountPercentage === 0;
 
       if (isFreeNow) {
         jogos.push({
           title: game.title,
+          description: game.description || "Resgate este jogo gratuitamente na Epic Games Store.",
           price: "GRÁTIS",
-          originalPrice: `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2) }`,
+          originalPrice: game.price.totalPrice.originalPrice > 0 ? `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2) }` : null,
           discount: "-100%",
           storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
-          imageUrl: game.keyImages.find(img => img.type === "Thumbnail" || img.type === "OfferImageWide")?.url || game.keyImages[0]?.url,
+          imageUrl: game.keyImages.find(img => img.type === "OfferImageWide")?.url || game.keyImages.find(img => img.type === "Thumbnail")?.url || game.keyImages[0]?.url,
           platform: "Epic Games"
         });
       }
@@ -138,7 +149,7 @@ async function scrapeXbox() {
     const title = $(el).find(".c-title").text().trim();
     const storeUrl = "https://xbox.com" + $(el).find("a").attr("href");
     const imageUrl = $(el).find("img").attr("src");
-    if (title) jogos.push({ title, price: "Gratuito", originalPrice: null, discount: null, storeUrl, imageUrl, platform: "Xbox" });
+    if (title) jogos.push({ title, price: "GRÁTIS", description: "Jogo gratuito na Xbox Store.", originalPrice: null, discount: null, storeUrl, imageUrl, platform: "Xbox" });
   });
   return jogos.slice(0, 10);
 }
@@ -151,10 +162,11 @@ async function scrapePSN() {
   const jogos = [];
   $(".psw-product-tile").each((_, el) => {
     const title = $(el).find(".psw-product-tile__title").text().trim();
-    const price = $(el).find(".psw-m-r-3").text().trim() || "Gratuito";
+    const priceText = $(el).find(".psw-m-r-3").text().trim();
+    const price = priceText || "GRÁTIS";
     const storeUrl = "https://store.playstation.com" + $(el).find("a").attr("href");
     const imageUrl = $(el).find("img").attr("src");
-    if (title) jogos.push({ title, price, originalPrice: null, discount: null, storeUrl, imageUrl, platform: "PSN" });
+    if (title) jogos.push({ title, price, description: "Oferta disponível na PlayStation Store.", originalPrice: null, discount: null, storeUrl, imageUrl, platform: "PSN" });
   });
   return jogos.slice(0, 10);
 }
