@@ -60,19 +60,18 @@ async function scrapeSteamFree() {
     const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
     
-    // Usar imagem vertical de alta qualidade (600x900)
     const imageUrl = appid 
       ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
       : $(el).find("img").attr("src").replace("capsule_616x353", "header");
     
     const isGiveaway = discount.includes("100");
-    const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || (priceText.includes("free") && !priceText.includes("play"));
+    const isFree = priceText.includes("gratuito") || priceText.includes("0,00") || priceText.includes("free");
 
     if (title && (isGiveaway || isFree)) {
       jogos.push({ 
         title, 
         price: "GRÁTIS", 
-        description: "Resgate este jogo gratuitamente na Steam.",
+        description: isGiveaway ? "PROMOÇÃO: Resgate este jogo gratuitamente (100% OFF)!" : "Jogo gratuito permanentemente na Steam.",
         originalPrice: isGiveaway ? "R$ --" : null, 
         discount: isGiveaway ? "-100%" : null, 
         storeUrl, 
@@ -82,42 +81,38 @@ async function scrapeSteamFree() {
       });
     }
   });
-  return jogos.slice(0, 15);
+  return jogos.slice(0, 20);
 }
 
-async function scrapeSteamSpecials() {
-  const url = "https://store.steampowered.com/search/?specials=1&cc=br";
-  const result = await fetchWithFallback(url, "Steam Specials");
-  if (!result) return [];
-  const $ = cheerio.load(result.html);
-  const jogos = [];
-  $(".search_result_row").each((_, el) => {
-    const title = $(el).find(".title").text().trim();
-    const appid = $(el).attr("data-ds-appid");
-    const price = $(el).find(".discount_final_price").text().trim();
-    const originalPrice = $(el).find(".discount_original_price").text().trim();
-    const discount = $(el).find(".discount_pct").text().trim();
-    const storeUrl = $(el).attr("href");
-    
-    const imageUrl = appid 
-      ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
-      : $(el).find("img").attr("src").replace("capsule_616x353", "header");
+async function scrapeEpicGames() {
+  const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
+  try {
+    const { data } = await axios.get(url, { timeout: 8000 });
+    const games = data.data.Catalog.searchStore.elements;
+    const jogos = [];
 
-    if (title && discount) {
-      jogos.push({ 
-        title, 
-        price, 
-        description: `Oferta especial na Steam: ${discount} de desconto!`,
-        originalPrice, 
-        discount, 
-        storeUrl, 
-        imageUrl, 
-        fallbackImage: $(el).find("img").attr("src").replace("capsule_616x353", "header"),
-        platform: "Steam" 
-      });
-    }
-  });
-  return jogos.slice(0, 15);
+    games.forEach(game => {
+      const promo = game.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
+      const isFreeNow = promo && promo.discountSetting?.discountPercentage === 0;
+
+      if (isFreeNow) {
+        jogos.push({
+          title: game.title,
+          description: game.description || "Resgate este jogo gratuitamente na Epic Games Store.",
+          price: "GRÁTIS",
+          originalPrice: game.price.totalPrice.originalPrice > 0 ? `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2).replace(".", ",") }` : null,
+          discount: "-100%",
+          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
+          imageUrl: game.keyImages.find(img => img.type === "OfferImageTall")?.url || game.keyImages.find(img => img.type === "Thumbnail")?.url || game.keyImages[0]?.url,
+          platform: "Epic Games"
+        });
+      }
+    });
+    return jogos;
+  } catch (err) {
+    log(`Epic Games API falhou: ${err.message}`, "error");
+    return [];
+  }
 }
 
 async function scrapeEpicSpecials() {
