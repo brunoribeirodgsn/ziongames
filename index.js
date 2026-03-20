@@ -120,7 +120,7 @@ async function scrapeSteamSpecials() {
   return jogos.slice(0, 15);
 }
 
-async function scrapeEpicGames() {
+async function scrapeEpicSpecials() {
   const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
@@ -128,25 +128,26 @@ async function scrapeEpicGames() {
     const jogos = [];
 
     games.forEach(game => {
-      const promo = game.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
-      const isFreeNow = promo && promo.discountSetting?.discountPercentage === 0;
+      const originalPrice = game.price.totalPrice.originalPrice;
+      const discountPrice = game.price.totalPrice.discountPrice;
+      const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
 
-      if (isFreeNow) {
+      if (discountPrice < originalPrice && discountPrice > 0) {
         jogos.push({
           title: game.title,
-          description: game.description || "Resgate este jogo gratuitamente na Epic Games Store.",
-          price: "GRÁTIS",
-          originalPrice: game.price.totalPrice.originalPrice > 0 ? `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2) }` : null,
-          discount: "-100%",
+          description: game.description || "Oferta especial na Epic Games Store.",
+          price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
+          originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
+          discount: `-${discountPercentage}%`,
           storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
-          imageUrl: game.keyImages.find(img => img.type === "OfferImageWide")?.url || game.keyImages.find(img => img.type === "Thumbnail")?.url || game.keyImages[0]?.url,
+          imageUrl: game.keyImages.find(img => img.type === "OfferImageTall")?.url || game.keyImages.find(img => img.type === "Thumbnail")?.url || game.keyImages[0]?.url,
           platform: "Epic Games"
         });
       }
     });
     return jogos;
   } catch (err) {
-    log(`Epic Games API falhou: ${err.message}`, "error");
+    log(`Epic Promos API falhou: ${err.message}`, "error");
     return [];
   }
 }
@@ -191,11 +192,10 @@ app.get("/api/games/:platform", async (req, res) => {
 
   try {
     let data = [];
-    if (platform === "steam") {
-        const [free, specials] = await Promise.all([scrapeSteamFree(), scrapeSteamSpecials()]);
-        data = [...free, ...specials];
-    }
+    if (platform === "steam") data = await scrapeSteamSpecials();
+    else if (platform === "steam-free") data = await scrapeSteamFree();
     else if (platform === "epic") data = await scrapeEpicGames();
+    else if (platform === "epic-promos") data = await scrapeEpicSpecials();
     else if (platform === "xbox") data = await scrapeXbox();
     else if (platform === "psn") data = await scrapePSN();
     else if (platform === "descobrir") {
@@ -203,7 +203,8 @@ app.get("/api/games/:platform", async (req, res) => {
       data = results.flat();
     }
     else if (platform === "promocoes") {
-        data = await scrapeSteamSpecials();
+        const [steam, epic] = await Promise.all([scrapeSteamSpecials(), scrapeEpicSpecials()]);
+        data = [...steam, ...epic];
     }
 
     cache.set(cacheKey, data, CACHE_TTL);
