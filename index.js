@@ -55,10 +55,26 @@ async function scrapeSteamFree() {
   const jogos = [];
   $(".search_result_row").each((_, el) => {
     const title = $(el).find(".title").text().trim();
-    const price = "Gratuito";
+    const priceText = $(el).find(".search_price").text().trim().toLowerCase();
+    const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
     const imageUrl = $(el).find("img").attr("src");
-    if (title) jogos.push({ title, price, originalPrice: null, discount: null, storeUrl, imageUrl, platform: "Steam" });
+    
+    // Prioritizar Giveaways (100% off) ou preçõ que diga "Gratuito" (não "Free to Play" permanente)
+    const isGiveaway = discount.includes("100");
+    const isFree = priceText.includes("gratuito") && !priceText.includes("play");
+
+    if (title && (isGiveaway || isFree)) {
+      jogos.push({ 
+        title, 
+        price: "GRÁTIS", 
+        originalPrice: isGiveaway ? "R$ --" : null, 
+        discount: isGiveaway ? "-100%" : null, 
+        storeUrl, 
+        imageUrl, 
+        platform: "Steam" 
+      });
+    }
   });
   return jogos.slice(0, 15);
 }
@@ -82,20 +98,34 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicGames() {
-  const url = "https://store.epicgames.com/pt-BR/free-games";
-  const result = await fetchWithFallback(url, "Epic Games");
-  if (!result) return [];
-  const $ = cheerio.load(result.html);
-  const jogos = [];
-  $("div[data-testid='offer-card-wrapper']").each((_, el) => {
-    const title = $(el).find("[data-testid='title-library-item']").text().trim() || $(el).find(".css-2ucwu").text().trim();
-    const storeUrl = "https://store.epicgames.com" + $(el).find("a").attr("href");
-    const imageUrl = $(el).find("img").attr("src");
-    if (title && !title.includes("Em breve")) {
-      jogos.push({ title, price: "Gratuito", originalPrice: null, discount: null, storeUrl, imageUrl, platform: "Epic Games" });
-    }
-  });
-  return jogos.slice(0, 10);
+  const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
+  try {
+    const { data } = await axios.get(url, { timeout: 8000 });
+    const games = data.data.Catalog.searchStore.elements;
+    const jogos = [];
+
+    games.forEach(game => {
+      // Verificar se o jogo está atualmente grátis
+      const promo = game.promotions?.promotionalOffers?.[0]?.promotionalOffers?.[0];
+      const isFreeNow = promo && promo.discountSetting?.discountPercentage === 0;
+
+      if (isFreeNow) {
+        jogos.push({
+          title: game.title,
+          price: "GRÁTIS",
+          originalPrice: `R$ ${ (game.price.totalPrice.originalPrice / 100).toFixed(2) }`,
+          discount: "-100%",
+          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
+          imageUrl: game.keyImages.find(img => img.type === "Thumbnail" || img.type === "OfferImageWide")?.url || game.keyImages[0]?.url,
+          platform: "Epic Games"
+        });
+      }
+    });
+    return jogos;
+  } catch (err) {
+    log(`Epic Games API falhou: ${err.message}`, "error");
+    return [];
+  }
 }
 
 async function scrapeXbox() {
