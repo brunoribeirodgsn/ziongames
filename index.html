@@ -364,20 +364,6 @@
                     }
                 };
             }
-         `;
-                gameModal.classList.remove('hidden');
-                setTimeout(() => {
-                    gameModal.classList.add('opacity-100');
-                    modalWrapper.classList.remove('scale-90');
-                }, 10);
-                lucide.createIcons();
-
-                document.getElementById('share-game').onclick = () => {
-                    if (navigator.share) {
-                        navigator.share({ title: game.title, url: game.storeUrl });
-                    }
-                };
-            }
 
             document.getElementById('close-modal').onclick = () => {
                 gameModal.classList.remove('opacity-100');
