@@ -155,11 +155,11 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicSpecials() {
-  // Use the search store API which is more reliable for promos
-  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=30&country=BR&locale=pt-BR&sortBy=releaseDate&sortDir=DESC&allowCountries=BR";
+  // Broad search specifically for games on sale using confirmed parameters
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=60&country=BR&locale=pt-BR&onSale=true&category=game";
   try {
     const { data } = await axios.get(url, { 
-      timeout: 8000,
+      timeout: 10000,
       headers: DEFAULT_HEADERS
     });
     const games = data?.data?.Catalog?.searchStore?.elements || [];
@@ -183,11 +183,44 @@ async function scrapeEpicSpecials() {
         });
       }
     });
+
+    // If searchstore returns nothing, try a fallback with freeGamesPromotions
+    if (jogos.length === 0) {
+      log("Epic Promo searchstore empty, trying freeGamesPromotions fallback...", "warn");
+      return await scrapeEpicSpecialsFallback();
+    }
+
     return jogos;
   } catch (err) {
     log(`Epic Promos API falhou: ${err.message}`, "error");
-    return [];
+    return await scrapeEpicSpecialsFallback();
   }
+}
+
+async function scrapeEpicSpecialsFallback() {
+  const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
+  try {
+    const { data } = await axios.get(url, { timeout: 8000, headers: DEFAULT_HEADERS });
+    const games = data?.data?.Catalog?.searchStore?.elements || [];
+    const jogos = [];
+    games.forEach(game => {
+      const originalPrice = game.price?.totalPrice?.originalPrice || 0;
+      const discountPrice = game.price?.totalPrice?.discountPrice || 0;
+      if (discountPrice < originalPrice && discountPrice > 0) {
+        const dp = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
+        jogos.push({
+          title: game.title,
+          price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
+          originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
+          discount: `-${dp}%`,
+          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs?.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
+          imageUrl: game.keyImages?.find(img => img.type === "OfferImageTall")?.url || game.keyImages?.[0]?.url,
+          platform: "Epic Games"
+        });
+      }
+    });
+    return jogos;
+  } catch (e) { return []; }
 }
 
 async function scrapeXbox() {
