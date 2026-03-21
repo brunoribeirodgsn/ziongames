@@ -155,8 +155,8 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicSpecials() {
-  // Use a very broad search limit to ensure we find some promos
-  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=100&country=BR&locale=pt-BR&onSale=true";
+  // Brute force: get 100 items and check every single one for a discount
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=100&country=BR&locale=pt-BR";
   try {
     const { data } = await axios.get(url, { 
       timeout: 10000,
@@ -166,19 +166,18 @@ async function scrapeEpicSpecials() {
     const jogos = [];
 
     games.forEach(game => {
-      // Epic sometimes has multiple offers, butTotalPrice is usually the main one
-      const priceData = game.price?.totalPrice || game.price?.lineOffers?.[0]?.appliedRules?.[0] || {};
+      const priceData = game.price?.totalPrice || {};
       const originalPrice = priceData.originalPrice || 0;
       const discountPrice = priceData.discountPrice || 0;
       
       if (discountPrice < originalPrice && discountPrice > 0) {
         const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
         
-        // Only add if it's not a free game (which goes to Epic Grátis)
+        // Skip 100% off (those go to Epic Grátis)
         if (discountPercentage < 100) {
           jogos.push({
             title: game.title,
-            description: game.description || "Oferta especial disponível na Epic Games Store.",
+            description: game.description || "Oferta especial na Epic Games Store.",
             price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
             originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
             discount: `-${discountPercentage}%`,
