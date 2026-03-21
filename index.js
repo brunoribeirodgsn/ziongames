@@ -16,6 +16,11 @@ app.use(express.json());
 const CACHE_TTL = 60 * 30; // 30 minutos
 const cache = new NodeCache();
 
+const DEFAULT_HEADERS = {
+  "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+  "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+};
+
 // 🧩 Utilitário de log
 function log(msg, type = "info") {
   const ts = new Date().toISOString();
@@ -25,85 +30,55 @@ function log(msg, type = "info") {
 
 async function fetchWithFallback(url, platform) {
   try {
-    const { data } = await axios.get(url, { timeout: 8000 });
+    const { data } = await axios.get(url, { 
+      timeout: 8000,
+      headers: DEFAULT_HEADERS
+    });
     return { html: data, source: "axios" };
   } catch (err) {
+    log(`Axios falhou para ${platform}, tentando Puppeteer...`, "warn");
     try {
       const browser = await puppeteer.launch({
-        args: chromium.args,
+        args: [...chromium.args, "--no-sandbox", "--disable-setuid-sandbox"],
         defaultViewport: chromium.defaultViewport,
         executablePath: await chromium.executablePath(),
         headless: chromium.headless,
       });
       const page = await browser.newPage();
-      await page.goto(url, { waitUntil: "networkidle2", timeout: 15000 });
+      await page.setUserAgent(DEFAULT_HEADERS["User-Agent"]);
+      await page.goto(url, { waitUntil: "networkidle2", timeout: 20000 });
       const html = await page.content();
       await browser.close();
       return { html, source: "puppeteer" };
     } catch (err2) {
+      log(`Puppeteer falhou para ${platform}: ${err2.message}`, "error");
       return null;
     }
   }
 }
+
+// Scrapers
 async function scrapeSteamFree() {
-  // Use Steam's JSON API for featured categories (includes free_games)
-  const url = "https://store.steampowered.com/api/featuredcategories/?cc=br&l=brazilian";
-  try {
-    const { data } = await axios.get(url, { timeout: 8000 });
-    const freeSection = data.free_games?.items || [];
-    const jogos = freeSection.map(item => ({
-      title: item.name,
-      price: "GRÁTIS",
-      description: "Jogo disponível gratuitamente na Steam.",
-      originalPrice: null,
-      discount: null,
-      storeUrl: `https://store.steampowered.com/app/${item.id}`,
-      imageUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${item.id}/library_600x900.jpg`,
-      platform: "Steam"
-    }));
-    
-    if (jogos.length > 0) return jogos;
-
-    // Fallback to scrape if JSON is empty (though it rarely is)
-    return await scrapeSteamFreeOld();
-  } catch (err) {
-    return await scrapeSteamFreeOld();
-  }
-}
-
-async function scrapeSteamFreeOld() {
-  const url = "https://store.steampowered.com/search/?filter=free&ndl=1&cc=br";
-  const result = await fetchWithFallback(url, "Steam Free fallback");
+  const url = "https://store.steampowered.com/search/?maxprice=free&supportedlang=brazilian&ndl=1&cc=br";
+  const result = await fetchWithFallback(url, "Steam Free");
   if (!result || !result.html) return [];
   const $ = cheerio.load(result.html);
   const jogos = [];
-  $(".search_result_rows .search_result_row").each((_, el) => {
+  
+  $(".search_result_row").each((_, el) => {
     const title = $(el).find(".title").text().trim();
     const appid = $(el).attr("data-ds-appid");
-    // Steam sometimes places "Free" in different classes or directly in the div
-    const priceText = $(el).find(".search_price").text().trim().toLowerCase();
-    const discount = $(el).find(".discount_pct").text().trim();
     const storeUrl = $(el).attr("href");
     
-    // Some free games have the price in .responsive_secondrow
-    const extraPrice = $(el).find(".responsive_secondrow").text().trim().toLowerCase();
-    
-    const imageUrl = appid 
-      ? `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`
-      : $(el).find("img").attr("src")?.replace("capsule_616x353", "header");
-    
-    const isFree = priceText.includes("grat") || priceText.includes("free") || priceText.includes("0,00") || extraPrice.includes("grat") || extraPrice.includes("free");
-    const isGiveaway = discount.includes("100");
-
-    if (title && (isFree || isGiveaway)) {
+    if (title && appid) {
       jogos.push({ 
         title, 
         price: "GRÁTIS", 
-        description: isGiveaway ? "PROMOÇÃO: Resgate agora e fique para sempre (100% OFF)!" : "Jogo disponível gratuitamente na Steam.",
-        originalPrice: isGiveaway ? "R$ --" : null, 
-        discount: isGiveaway ? "-100%" : null, 
+        description: "Jogo disponível gratuitamente na Steam.",
+        originalPrice: null, 
+        discount: null, 
         storeUrl, 
-        imageUrl: imageUrl || "https://community.akamai.steamstatic.com/public/images/applications/store/capsule_616x353.jpg",
+        imageUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${appid}/library_600x900.jpg`,
         platform: "Steam" 
       });
     }
@@ -114,7 +89,10 @@ async function scrapeSteamFreeOld() {
 async function scrapeEpicGames() {
   const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
   try {
-    const { data } = await axios.get(url, { timeout: 8000 });
+    const { data } = await axios.get(url, { 
+      timeout: 8000, 
+      headers: DEFAULT_HEADERS 
+    });
     const games = data?.data?.Catalog?.searchStore?.elements || [];
     const jogos = [];
 
@@ -177,9 +155,13 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicSpecials() {
-  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=40&country=BR&locale=pt-BR&sortBy=releaseDate&sortDir=DESC&allowCountries=BR";
+  // Use the search store API which is more reliable for promos
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=30&country=BR&locale=pt-BR&sortBy=releaseDate&sortDir=DESC&allowCountries=BR";
   try {
-    const { data } = await axios.get(url, { timeout: 8000 });
+    const { data } = await axios.get(url, { 
+      timeout: 8000,
+      headers: DEFAULT_HEADERS
+    });
     const games = data?.data?.Catalog?.searchStore?.elements || [];
     const jogos = [];
 
@@ -187,12 +169,11 @@ async function scrapeEpicSpecials() {
       const originalPrice = game.price?.totalPrice?.originalPrice || 0;
       const discountPrice = game.price?.totalPrice?.discountPrice || 0;
       
-      // Filter for active promotions (not free games)
       if (discountPrice < originalPrice && discountPrice > 0) {
         const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
         jogos.push({
           title: game.title,
-          description: game.description || "Oferta imperdível disponível por tempo limitado.",
+          description: game.description || "Oferta imperdível na Epic Games Store.",
           price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
           originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
           discount: `-${discountPercentage}%`,
