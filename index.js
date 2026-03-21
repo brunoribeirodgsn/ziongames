@@ -45,11 +45,35 @@ async function fetchWithFallback(url, platform) {
     }
   }
 }
-
-// Scrapers
 async function scrapeSteamFree() {
+  // Use Steam's JSON API for featured categories (includes free_games)
+  const url = "https://store.steampowered.com/api/featuredcategories/?cc=br&l=brazilian";
+  try {
+    const { data } = await axios.get(url, { timeout: 8000 });
+    const freeSection = data.free_games?.items || [];
+    const jogos = freeSection.map(item => ({
+      title: item.name,
+      price: "GRÁTIS",
+      description: "Jogo disponível gratuitamente na Steam.",
+      originalPrice: null,
+      discount: null,
+      storeUrl: `https://store.steampowered.com/app/${item.id}`,
+      imageUrl: `https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/${item.id}/library_600x900.jpg`,
+      platform: "Steam"
+    }));
+    
+    if (jogos.length > 0) return jogos;
+
+    // Fallback to scrape if JSON is empty (though it rarely is)
+    return await scrapeSteamFreeOld();
+  } catch (err) {
+    return await scrapeSteamFreeOld();
+  }
+}
+
+async function scrapeSteamFreeOld() {
   const url = "https://store.steampowered.com/search/?filter=free&ndl=1&cc=br";
-  const result = await fetchWithFallback(url, "Steam Free");
+  const result = await fetchWithFallback(url, "Steam Free fallback");
   if (!result || !result.html) return [];
   const $ = cheerio.load(result.html);
   const jogos = [];
@@ -153,8 +177,7 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicSpecials() {
-  // Broad search for games on sale
-  const url = "https://store-site-backend-static.ak.epicgames.com/freeGamesPromotions?locale=pt-BR&country=BR&allowCountries=BR";
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=40&country=BR&locale=pt-BR&sortBy=releaseDate&sortDir=DESC&allowCountries=BR";
   try {
     const { data } = await axios.get(url, { timeout: 8000 });
     const games = data?.data?.Catalog?.searchStore?.elements || [];
