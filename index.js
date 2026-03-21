@@ -155,8 +155,8 @@ async function scrapeSteamSpecials() {
 }
 
 async function scrapeEpicSpecials() {
-  // Broad search specifically for games on sale using confirmed parameters
-  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=60&country=BR&locale=pt-BR&onSale=true&category=game";
+  // Use a very broad search limit to ensure we find some promos
+  const url = "https://store-site-backend-static.ak.epicgames.com/api/v1/searchstore?limit=100&country=BR&locale=pt-BR&onSale=true";
   try {
     const { data } = await axios.get(url, { 
       timeout: 10000,
@@ -166,33 +166,33 @@ async function scrapeEpicSpecials() {
     const jogos = [];
 
     games.forEach(game => {
-      const originalPrice = game.price?.totalPrice?.originalPrice || 0;
-      const discountPrice = game.price?.totalPrice?.discountPrice || 0;
+      // Epic sometimes has multiple offers, butTotalPrice is usually the main one
+      const priceData = game.price?.totalPrice || game.price?.lineOffers?.[0]?.appliedRules?.[0] || {};
+      const originalPrice = priceData.originalPrice || 0;
+      const discountPrice = priceData.discountPrice || 0;
       
       if (discountPrice < originalPrice && discountPrice > 0) {
         const discountPercentage = Math.round(((originalPrice - discountPrice) / originalPrice) * 100);
-        jogos.push({
-          title: game.title,
-          description: game.description || "Oferta imperdível na Epic Games Store.",
-          price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
-          originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
-          discount: `-${discountPercentage}%`,
-          storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs?.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
-          imageUrl: game.keyImages?.find(img => img.type === "OfferImageTall")?.url || game.keyImages?.find(img => img.type === "Thumbnail")?.url || game.keyImages?.[0]?.url,
-          platform: "Epic Games"
-        });
+        
+        // Only add if it's not a free game (which goes to Epic Grátis)
+        if (discountPercentage < 100) {
+          jogos.push({
+            title: game.title,
+            description: game.description || "Oferta especial disponível na Epic Games Store.",
+            price: `R$ ${(discountPrice / 100).toFixed(2).replace(".", ",")}`,
+            originalPrice: `R$ ${(originalPrice / 100).toFixed(2).replace(".", ",")}`,
+            discount: `-${discountPercentage}%`,
+            storeUrl: `https://store.epicgames.com/pt-BR/p/${game.catalogNs?.mappings?.[0]?.pageSlug || game.productSlug || ""}`,
+            imageUrl: game.keyImages?.find(img => img.type === "OfferImageTall")?.url || game.keyImages?.find(img => img.type === "Thumbnail")?.url || game.keyImages?.[0]?.url,
+            platform: "Epic Games"
+          });
+        }
       }
     });
 
-    // If searchstore returns nothing, try a fallback with freeGamesPromotions
-    if (jogos.length === 0) {
-      log("Epic Promo searchstore empty, trying freeGamesPromotions fallback...", "warn");
-      return await scrapeEpicSpecialsFallback();
-    }
-
+    if (jogos.length === 0) return await scrapeEpicSpecialsFallback();
     return jogos;
   } catch (err) {
-    log(`Epic Promos API falhou: ${err.message}`, "error");
     return await scrapeEpicSpecialsFallback();
   }
 }
